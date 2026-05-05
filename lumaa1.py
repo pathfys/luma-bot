@@ -1355,24 +1355,42 @@ async def handle_get_user(request):
 
 async def handle_create_order(request):
     import random, string
+
+    # ── 1. Парсинг JSON ──────────────────────────────────────────────
     try:
         data = await request.json()
     except Exception as e:
-        print(f"[ERROR] create_order JSON: {e}")
+        print(f"[create_order] ❌ JSON parse error: {e}")
         return web.json_response({'ok': False, 'error': 'invalid json'})
 
-    uid = int(data.get('uid', 0))
-    username = data.get('username', str(uid))
-    first_name = data.get('first_name', '')
-    currency = data.get('currency', '')
-    item = data.get('item', '')
-    price = data.get('price', '')
+    print(f"[create_order] 📥 Incoming: {data}")
 
-    if not uid or not currency or not item or not price:
-        return web.json_response({'ok': False, 'error': 'missing fields'})
+    # ── 2. Извлечение полей ──────────────────────────────────────────
+    uid_raw   = data.get('uid')
+    username  = data.get('username', '').strip()
+    first_name = data.get('first_name', '').strip()
+    currency  = data.get('currency', '').strip()
+    item      = data.get('item', '').strip()
+    price     = data.get('price', '').strip()
 
+    # ── 3. Валидация uid ────────────────────────────────────────────
+    try:
+        uid = int(uid_raw)
+        if uid <= 0:
+            raise ValueError("uid <= 0")
+    except (ValueError, TypeError) as e:
+        print(f"[create_order] ❌ Bad uid: {uid_raw!r} — {e}")
+        return web.json_response({'ok': False, 'error': f'invalid uid: {uid_raw}'})
+
+    # ── 4. Валидация обязательных полей ─────────────────────────────
+    missing = [f for f, v in [('currency', currency), ('item', item), ('price', price)] if not v]
+    if missing:
+        print(f"[create_order] ❌ Missing fields: {missing}")
+        return web.json_response({'ok': False, 'error': f'missing: {", ".join(missing)}'})
+
+    # ── 5. Формирование сделки ───────────────────────────────────────
     memo = ''.join(random.choices(string.ascii_letters + string.digits, k=8))
-    seller_name = f"@{username}" if username != str(uid) else first_name
+    seller_name = f"@{username}" if username else (first_name or str(uid))
 
     deal = {
         'seller_name': seller_name,
@@ -1387,61 +1405,88 @@ async def handle_create_order(request):
     DEALS[memo] = deal
 
     seller_link = f"https://t.me/LumaEnBot/app?startapp=seller_{memo}"
-    buyer_link = f"https://t.me/LumaEnBot/app?startapp=buyer_{memo}"
+    buyer_link  = f"https://t.me/LumaEnBot?start={memo}"
 
-    u_lang = user_languages.get(uid, "ru")
+    # user_languages может хранить uid как int или str — проверяем оба
+    u_lang = user_languages.get(uid) or user_languages.get(str(uid)) or "ru"
+
+    print(f"[create_order] ✅ Deal {memo} | uid={uid} | lang={u_lang} | {seller_name} | {item} | {price} {currency}")
+
+    # ── 6. Клавиатура ────────────────────────────────────────────────
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="👤 Моя ссылка (продавец)" if u_lang == "ru" else "👤 My Link (Seller)", url=seller_link)],
-        [InlineKeyboardButton(text="🔗 Ссылка покупателя" if u_lang == "ru" else "🔗 Buyer Link", url=buyer_link)]
+        [InlineKeyboardButton(
+            text="👤 Моя ссылка (продавец)" if u_lang == "ru" else "👤 My Link (Seller)",
+            url=seller_link
+        )],
+        [InlineKeyboardButton(
+            text="🔗 Ссылка покупателя" if u_lang == "ru" else "🔗 Buyer Link",
+            url=buyer_link
+        )]
     ])
 
-    order_msg = (
-        f"✅ <b>Ордер создан!</b>\n\n"
-        f"<blockquote>"
-        f"📋 Товар: {item}\n"
-        f"💰 Сумма: {price} {currency}\n"
-        f"🔖 Код: <code>{memo}</code>"
-        f"</blockquote>\n\n"
-        f"👤 Ваша ссылка (продавец):\n{seller_link}\n\n"
-        f"🔗 Ссылка покупателя:\n{buyer_link}"
-        if u_lang == "ru" else
-        f"✅ <b>Order created!</b>\n\n"
-        f"<blockquote>"
-        f"📋 Item: {item}\n"
-        f"💰 Amount: {price} {currency}\n"
-        f"🔖 Code: <code>{memo}</code>"
-        f"</blockquote>\n\n"
-        f"👤 Your link (seller):\n{seller_link}\n\n"
-        f"🔗 Buyer link:\n{buyer_link}"
-    )
+    # ── 7. Сообщение продавцу ────────────────────────────────────────
+    if u_lang == "ru":
+        order_msg = (
+            f"✅ <b>Ордер создан!</b>\n\n"
+            f"<blockquote>"
+            f"📋 Товар: {item}\n"
+            f"💰 Сумма: {price} {currency}\n"
+            f"🔖 Код: <code>{memo}</code>"
+            f"</blockquote>\n\n"
+            f"👤 Ваша ссылка (продавец):\n{seller_link}\n\n"
+            f"🔗 Ссылка покупателя:\n{buyer_link}"
+        )
+    else:
+        order_msg = (
+            f"✅ <b>Order created!</b>\n\n"
+            f"<blockquote>"
+            f"📋 Item: {item}\n"
+            f"💰 Amount: {price} {currency}\n"
+            f"🔖 Code: <code>{memo}</code>"
+            f"</blockquote>\n\n"
+            f"👤 Your link (seller):\n{seller_link}\n\n"
+            f"🔗 Buyer link:\n{buyer_link}"
+        )
 
+    send_ok = False
     try:
         await bot.send_message(uid, order_msg, parse_mode="HTML", reply_markup=keyboard)
+        send_ok = True
+        print(f"[create_order] ✅ Seller notified: uid={uid}")
     except Exception as e:
-        print(f"[ERROR] Order send to {uid}: {e}")
+        print(f"[create_order] ❌ send_message FAILED uid={uid}: {type(e).__name__}: {e}")
+
+    # ── 8. Лог в канал ───────────────────────────────────────────────
+    status_icon = "🟢" if send_ok else "🟡"
+    send_status = "" if send_ok else "\n⚠️ <b>Сообщение продавцу не доставлено!</b>"
 
     try:
         await bot.send_message(
             LOG_CHANNEL_ID,
-            f"🟢 <b>Новый ордер из WebApp</b>\n\n"
+            f"{status_icon} <b>Новый ордер из WebApp</b>{send_status}\n\n"
             f"<blockquote>"
             f"👤 Продавец: {seller_name} ({uid})\n"
             f"📦 Товар: {item}\n"
             f"💰 Сумма: {price} {currency}\n"
-            f"🔖 Код: {memo}"
+            f"🔖 Код: <code>{memo}</code>"
             f"</blockquote>\n\n"
             f"👤 Продавец: {seller_link}\n"
             f"🔗 Покупатель: {buyer_link}",
             parse_mode="HTML"
         )
+        print(f"[create_order] ✅ Log channel notified")
     except Exception as e:
-        print(f"[ERROR] Order log: {e}")
+        print(f"[create_order] ❌ Log channel FAILED: {type(e).__name__}: {e}")
 
+    # ── 9. Ответ фронтенду ───────────────────────────────────────────
+    # Возвращаем ok=True даже если send_message упал — ордер сохранён в DEALS
+    # Фронтенд получит memo и ссылки в любом случае
     return web.json_response({
         'ok': True,
         'memo': memo,
         'seller_link': seller_link,
-        'buyer_link': buyer_link
+        'buyer_link': buyer_link,
+        'delivered': send_ok  # фронтенд может показать предупреждение если False
     })
 
 
@@ -1745,6 +1790,99 @@ async def start_web_server():
         site = web.TCPSite(runner, '0.0.0.0', 8080)
         await site.start()
         print("[INFO] HTTP server started on port 8080")
+
+@app.post("/create_order")
+async def create_order_endpoint(request: Request):
+    import random, string
+    
+    data = await request.json()
+    
+    uid_raw = data.get('uid')
+    username = data.get('username', '')
+    first_name = data.get('first_name', '')
+    currency = data.get('currency', '')
+    item = data.get('item', '')
+    price = data.get('price', '')
+
+    if not uid_raw or not currency or not item or not price:
+        print(f"[create_order] Incomplete data: {data}")
+        return {"ok": False, "error": "incomplete data"}
+
+    try:
+        uid = int(uid_raw)  # aiogram требует int для chat_id
+    except (ValueError, TypeError):
+        return {"ok": False, "error": f"invalid uid: {uid_raw}"}
+
+    memo = ''.join(random.choices(string.ascii_letters + string.digits, k=8))
+    seller_name = f"@{username}" if username else first_name or str(uid)
+    
+    deal = {
+        'seller_name': seller_name,
+        'seller_id': uid,
+        'item': item,
+        'price': f"{price} {currency}",
+        'memo': memo
+    }
+    DEALS[memo] = deal
+
+    join_url = f"https://t.me/LumaEnBot?start={memo}"
+    
+    # user_languages может хранить ключи и как int, и как str — проверяем оба
+    wa_lang = user_languages.get(uid) or user_languages.get(str(uid)) or "ru"
+    
+    print(f"[create_order] uid={uid}, lang={wa_lang}, item={item}, price={price} {currency}")
+
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[[
+        InlineKeyboardButton(
+            text="🔗 Ссылка для покупателя" if wa_lang == "ru" else "🔗 Share Order Link",
+            url=join_url
+        )
+    ]])
+    
+    order_text = (
+        f"✅ <b>Ордер создан!</b>\n\n"
+        f"<blockquote>"
+        f"📋 Товар: {item}\n"
+        f"💰 Сумма: {price} {currency}\n"
+        f"🔖 Код: <code>{memo}</code>"
+        f"</blockquote>\n\n"
+        f"🔗 Ссылка для покупателя:\n{join_url}"
+        if wa_lang == "ru" else
+        f"✅ <b>Order created!</b>\n\n"
+        f"<blockquote>"
+        f"📋 Item: {item}\n"
+        f"💰 Amount: {price} {currency}\n"
+        f"🔖 Code: <code>{memo}</code>"
+        f"</blockquote>\n\n"
+        f"🔗 Buyer link:\n{join_url}"
+    )
+
+    try:
+        await bot.send_message(uid, order_text, parse_mode="HTML", reply_markup=keyboard)
+        print(f"[create_order] ✅ Message sent to {uid}")
+    except Exception as e:
+        print(f"[create_order] ❌ send_message failed for uid={uid}: {type(e).__name__}: {e}")
+        return {"ok": False, "error": str(e)}
+
+    try:
+        await bot.send_message(
+            LOG_CHANNEL_ID,
+            f"🟢 <b>Новый ордер из WebApp</b>\n\n"
+            f"<blockquote>"
+            f"👤 Продавец: {seller_name} ({uid})\n"
+            f"📦 Товар: {item}\n"
+            f"💰 Сумма: {price} {currency}\n"
+            f"🔖 Код: {memo}"
+            f"</blockquote>\n\n"
+            f"🔗 {join_url}",
+            parse_mode="HTML"
+        )
+    except Exception as e:
+        print(f"[create_order] ⚠️ log channel error: {e}")
+        # не возвращаем ошибку — ордер уже отправлен пользователю
+
+    return {"ok": True, "memo": memo}
+    
 # ===================== MAIN ===================== #
 async def main():
     try:
