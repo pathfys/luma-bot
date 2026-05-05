@@ -24,12 +24,10 @@ NGROK_TOKEN = "3CrrANMLxtMg9GWNsoHKUK4nhic_5wdQm43maqQR6cD56V1wi"
 bot = Bot(token=BOT_TOKEN)
 storage = MemoryStorage()
 dp = Dispatcher(storage=storage)
-
 all_users = {}
 user_languages = {}
 user_turnover = {}
 _set_my_deals_waiting = set()
-DEALS = {}
 used_memos = set()
 user_cards = {}
 user_card_states = {}
@@ -39,6 +37,19 @@ user_photos = {}
 
 # Файл для хранения админов
 ADMINS_FILE = "admins.json"
+DEALS_FILE = "deals.json"
+
+def load_deals():
+    if os.path.exists(DEALS_FILE):
+        with open(DEALS_FILE, "r") as f:
+            return json.load(f)
+    return {}
+
+def save_deals():
+    with open(DEALS_FILE, "w") as f:
+        json.dump(DEALS, f)
+
+DEALS = load_deals()
 
 def load_admins():
     if os.path.exists(ADMINS_FILE):
