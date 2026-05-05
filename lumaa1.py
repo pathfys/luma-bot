@@ -131,7 +131,7 @@ translations = {
             "👤 Продавец: {seller}\n"
             "🔖 Код сделки: {memo}"
             "</blockquote>\n\n"
-            "🔗 Ссылка: https://t.me/LumaEnBot?start={memo}\n\n"
+            "🔗 Ссылка: https://t.me/LumaEnBot/app?startapp=buyer_{memo}\n\n"
             "ℹ️ Передача товара переходит к менеджеру."
         ),
         "en": (
@@ -142,7 +142,7 @@ translations = {
             "👤 Seller: {seller}\n"
             "🔖 Deal code: {memo}"
             "</blockquote>\n\n"
-            "🔗 Link: https://t.me/LumaEnBot?start={memo}\n\n"
+            "🔗 Link: https://t.me/LumaEnBot/app?startapp=buyer_{memo}\n\n"
             "ℹ️ Item transfer is handled by the manager."
         ),
     },
@@ -1196,7 +1196,8 @@ async def web_app_handler(message: Message):
         }
         DEALS[memo] = deal
 
-        join_url = f"https://t.me/LumaEnBot?start={memo}"
+        
+        join_url = f"https://t.me/LumaEnBot/app?startapp=buyer_{memo}"
         wa_lang2 = user_languages.get(uid, "ru")
         keyboard = InlineKeyboardMarkup(inline_keyboard=[[
             InlineKeyboardButton(
