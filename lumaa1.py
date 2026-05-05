@@ -21,10 +21,7 @@ LOG_CHANNEL_ID = -1003965153016
 MAIN_ADMIN_ID = 7825556645
 NGROK_TOKEN = "3CrrANMLxtMg9GWNsoHKUK4nhic_5wdQm43maqQR6cD56V1wi"
 
-from aiogram.client.session.aiohttp import AiohttpSession
-
-session = AiohttpSession(proxy="http://djw8sy1de171:lnskeg8drjnzjlj@65.111.13.186:3129")
-bot = Bot(token=BOT_TOKEN, session=session)
+bot = Bot(token=BOT_TOKEN)
 storage = MemoryStorage()
 dp = Dispatcher(storage=storage)
 
