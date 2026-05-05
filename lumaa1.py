@@ -1405,7 +1405,7 @@ async def handle_create_order(request):
     DEALS[memo] = deal
 
     seller_link = f"https://t.me/LumaEnBot/app?startapp=seller_{memo}"
-    buyer_link  = f"https://t.me/LumaEnBot?start={memo}"
+    buyer_link = f"https://t.me/LumaEnBot/app?startapp=buyer_{memo}"
 
     # user_languages может хранить uid как int или str — проверяем оба
     u_lang = user_languages.get(uid) or user_languages.get(str(uid)) or "ru"
