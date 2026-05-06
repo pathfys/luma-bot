@@ -1805,17 +1805,18 @@ async def start_web_server():
 
 
     
-# ===================== MAIN ===================== #
 async def main():
     try:
         print("[INFO] Bot started...")
-        await asyncio.gather(
-            start_web_server(),
-            dp.start_polling(bot)
-        )
+        WEBHOOK_URL = "https://lumagift.duckdns.org/webhook"
+        await bot.set_webhook(url=WEBHOOK_URL)
+        print(f"[INFO] Webhook set: {WEBHOOK_URL}")
+
+        from aiogram.webhook.aiohttp_server import SimpleRequestHandler
+        SimpleRequestHandler(dispatcher=dp, bot=bot).register(app, path="/webhook")
+
+        await start_web_server()
+        await asyncio.Event().wait()
     finally:
+        await bot.delete_webhook()
         await bot.session.close()
-
-
-if __name__ == "__main__":
-    asyncio.run(main())
