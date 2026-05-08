@@ -1463,7 +1463,10 @@ async def handle_create_order(request):
 
     send_ok = False
     try:
-        await bot.send_message(uid, order_msg, parse_mode="HTML", reply_markup=keyboard)
+    await bot.send_message(uid, order_msg, parse_mode="HTML", reply_markup=keyboard)
+    print(f"[OK] message sent to {uid}")
+except Exception as e:
+    print(f"[SEND ERROR] {e}")
         send_ok = True
         print(f"[create_order] ✅ Seller notified: uid={uid}")
     except Exception as e:
@@ -1766,52 +1769,49 @@ async def check_admin(request):
     return web.json_response({"is_admin": uid in admins})
 
 
-# ===================== WEB SERVER =====================
+from aiohttp import web
+
+# ===================== MIDDLEWARE =====================
+@web.middleware
+async def cors_middleware(request, handler):
+    # preflight request
+    if request.method == "OPTIONS":
+        return web.Response(
+            status=200,
+            headers={
+                "Access-Control-Allow-Origin": "*",
+                "Access-Control-Allow-Headers": "*",
+                "Access-Control-Allow-Methods": "POST, GET, OPTIONS"
+            }
+        )
+
+    try:
+        response = await handler(request)
+    except Exception as e:
+        print(f"[SERVER ERROR] {e}")
+        return web.json_response({"ok": False, "error": str(e)}, status=500)
+
+    response.headers["Access-Control-Allow-Origin"] = "*"
+    return response
+
+
+# ===================== SERVER =====================
 async def start_web_server():
-        async def cors_middleware(app, handler):
-            async def middleware(request):
-                if request.method == 'OPTIONS':
-                    response = web.Response()
-                else:
-                    response = await handler(request)
-                response.headers['Access-Control-Allow-Origin'] = '*'
-                response.headers['Access-Control-Allow-Headers'] = '*'
-                return response
+    app = web.Application(middlewares=[cors_middleware])
 
-            return middleware
+    # routes
+    app.router.add_get('/user', handle_get_user)
+    app.router.add_get('/deal', handle_get_deal)
 
-        app = web.Application(middlewares=[cors_middleware])
-
-        app.router.add_get('/user', handle_get_user)
-        app.router.add_get('/deal', handle_get_deal)
-        app.router.add_post('/create_order', handle_create_order)
-        app.router.add_post('/buyer_paid', handle_buyer_paid)
-        app.router.add_post('/decline_order', handle_decline_order)
-        app.router.add_post('/transfer_confirm', handle_transfer_confirm)
-        app.router.add_post('/complete_deal', handle_complete_deal)
-        app.router.add_post('/support', handle_support)
-        app.router.add_get('/support/tickets', get_support_tickets)
-        app.router.add_get("/check_admin", check_admin)
-
-        for route in ['/user', '/deal', '/create_order', '/buyer_paid',
-                      '/decline_order', '/transfer_confirm', '/complete_deal',
-                      '/support', '/support/tickets']:
-            app.router.add_route('OPTIONS', route, lambda r: web.Response())
-
-        runner = web.AppRunner(app)
-        await runner.setup()
-        site = web.TCPSite(runner, '0.0.0.0', 8080)
-        await site.start()
-        print("[INFO] HTTP server started on port 8080")
-
-
-    
-async def main():
-    app = web.Application()
-
-    app.router.add_get('/get_user', handle_get_user)
     app.router.add_post('/create_order', handle_create_order)
-    app.router.add_get('/get_deal', handle_get_deal)
+    app.router.add_post('/buyer_paid', handle_buyer_paid)
+    app.router.add_post('/decline_order', handle_decline_order)
+    app.router.add_post('/transfer_confirm', handle_transfer_confirm)
+    app.router.add_post('/complete_deal', handle_complete_deal)
+    app.router.add_post('/support', handle_support)
+
+    app.router.add_get('/support/tickets', get_support_tickets)
+    app.router.add_get('/check_admin', check_admin)
 
     runner = web.AppRunner(app)
     await runner.setup()
@@ -1819,10 +1819,15 @@ async def main():
     site = web.TCPSite(runner, "0.0.0.0", 8080)
     await site.start()
 
-    print("Web server started on 8080")
-    print("Bot started...")
+    print("🌐 HTTP server started on port 8080")
 
-    await dp.start_polling(bot)
+
+    
+async def main():
+    await asyncio.gather(
+        start_web_server(),
+        dp.start_polling(bot)
+    )
 
 
 if __name__ == "__main__":
