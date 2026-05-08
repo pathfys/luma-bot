@@ -13,7 +13,6 @@ import json
 import os
 from aiogram.types import WebAppInfo
 from aiohttp import web
-from pyngrok import ngrok
 
 BOT_TOKEN = "8603271584:AAEYbTMAeutOwhvh3lqlGyLbWdMcKXmz7mE"
 WELCOME_PHOTO = "https://i.postimg.cc/sgKcz6qr/photo-2026-04-17-11-42-42.jpg"
@@ -34,6 +33,8 @@ user_card_states = {}
 user_ton = {}
 user_ton_states = {}
 user_photos = {}
+reply_contexts = {}
+support_tickets = {}
 
 # Файл для хранения админов
 ADMINS_FILE = "admins.json"
@@ -1814,10 +1815,15 @@ async def main():
 
     runner = web.AppRunner(app)
     await runner.setup()
+
     site = web.TCPSite(runner, "0.0.0.0", 8080)
     await site.start()
 
-    print("Web server started on port 8080")
+    print("Web server started on 8080")
     print("Bot started...")
 
     await dp.start_polling(bot)
+
+
+if __name__ == "__main__":
+    asyncio.run(main())
