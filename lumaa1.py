@@ -1806,10 +1806,18 @@ async def start_web_server():
 
     
 async def main():
-    try:
-        print("[INFO] Bot started...")
-        await bot.delete_webhook()
-        await start_web_server()
-        await dp.start_polling(bot)
-    finally:
-        await bot.session.close()
+    app = web.Application()
+
+    app.router.add_get('/get_user', handle_get_user)
+    app.router.add_post('/create_order', handle_create_order)
+    app.router.add_get('/get_deal', handle_get_deal)
+
+    runner = web.AppRunner(app)
+    await runner.setup()
+    site = web.TCPSite(runner, "0.0.0.0", 8080)
+    await site.start()
+
+    print("Web server started on port 8080")
+    print("Bot started...")
+
+    await dp.start_polling(bot)
