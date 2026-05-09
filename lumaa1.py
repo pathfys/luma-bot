@@ -1461,12 +1461,9 @@ async def handle_create_order(request):
             f"🔗 Buyer link:\n{buyer_link}"
         )
 
-    send_ok = False
+send_ok = False
     try:
-    await bot.send_message(uid, order_msg, parse_mode="HTML", reply_markup=keyboard)
-    print(f"[OK] message sent to {uid}")
-except Exception as e:
-    print(f"[SEND ERROR] {e}")
+        await bot.send_message(uid, order_msg, parse_mode="HTML", reply_markup=keyboard)
         send_ok = True
         print(f"[create_order] ✅ Seller notified: uid={uid}")
     except Exception as e:
@@ -1831,4 +1828,6 @@ async def main():
 
 
 if __name__ == "__main__":
+     print("FILE STARTED")
     asyncio.run(main())
+  
